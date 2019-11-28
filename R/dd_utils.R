@@ -866,3 +866,43 @@ rng_respecting_sample <- function(x, size, replace, prob) {
   non_zero_x <- x[which_non_zero]
   return(sample(x = non_zero_x, size = size, replace = replace, prob = non_zero_prob))
 }
+
+#' Function to convert a table with speciation and extinction events to a
+#' phylogenetic diversity metric
+#' 
+#' Converting a table with speciation and extinction events to a phylogenetic diversity metric
+#' 
+#' 
+#' @param L Matrix of events as produced by dd_sim: \cr \cr - the first column
+#' is the time at which a species is born in Mya\cr - the second column is the
+#' label of the parent of the species; positive and negative values indicate
+#' whether the species belongs to the left or right crown lineage \cr - the
+#' third column is the label of the daughter species itself; positive and
+#' negative values indicate whether the species belongs to the left or right
+#' crown lineage \cr - the fourth column is the time of extinction of the
+#' species; if the fourth element equals -1, then the species is still extant.
+#' @param t Sets whether the phylogeny should drop species that are
+#' extinct at the present
+#' @param metric specifies which phylogenetic diversity metric should be used
+#' @return a value of one of the phylogenetic diversity metrices
+#' @author Tianjian Qin
+#' @references - Etienne, R.S. et al. 2012, Proc. Roy. Soc. B 279: 1300-1309,
+#' doi: 10.1098/rspb.2011.1439 \cr - Etienne, R.S. & B. Haegeman 2012. Am. Nat.
+#' 180: E75-E89, doi: 10.1086/667574
+#' @keywords models
+#' @export L2Phi
+L2Phi <-function(L, t, metric) {
+    # reverse time scale
+    L[, 1] <- t - c(L[, 1])
+    notmin1 <- which(L[, 4] != -1)
+    L[notmin1, 4] <- t - c(L[notmin1, 4])
+    L[which(L[, 4] == t + 1), 4] <- -1
+
+    if(metric == "pd") {
+        return(sum(DDD::L2phylo(L, dropextinct = T)$edge.length))
+    } else if (metric == "mpd") {
+
+    } else if {
+
+    }
+}
