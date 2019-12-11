@@ -901,8 +901,8 @@ L2Phi <-function(L, t, metric) {
     if(metric == "pd") {
         return(sum(DDD::L2phylo(L, dropextinct = T)$edge.length))
     } else if (metric == "mpd") {
-
-    } else if {
+      
+    } else if (){
 
     }
 }
