@@ -1,15 +1,3 @@
-pdd_update_lamu <- function(lamu, Phi, K, model) {
-    if (model == "a") {
-        #linear PD dependence in speciation rate
-        newla <- max(0, lamu[1, 1] * (1 - Phi / K))
-        newmu <- lamu[1, 2]
-    } else if (model == "b") {
-        
-    }
-    
-    return(c(newla, newmu))
-}
-
 pdd_update_lamu <- function(lamu, Phi, pars, model) {
     if (model == "dsce1") {
         if (length(pars) != 1) {
