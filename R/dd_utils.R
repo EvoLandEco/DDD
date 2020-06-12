@@ -870,10 +870,11 @@ rng_respecting_sample <- function(x, size, replace, prob) {
 #' Function to convert a table with speciation and extinction events to a
 #' phylogenetic diversity metric
 #' 
-#' Converting a table with speciation and extinction events to a phylogenetic diversity metric
+#' Converting a table with speciation and extinction events to a phylogenetic 
+#' diversity metric
 #' 
 #' 
-#' @param L Matrix of events as produced by dd_sim: \cr \cr - the first column
+#' @param L Matrix of events as produced by pdd_sim: \cr \cr - the first column
 #' is the time at which a species is born in Mya\cr - the second column is the
 #' label of the parent of the species; positive and negative values indicate
 #' whether the species belongs to the left or right crown lineage \cr - the
@@ -891,18 +892,59 @@ rng_respecting_sample <- function(x, size, replace, prob) {
 #' 180: E75-E89, doi: 10.1086/667574
 #' @keywords models
 #' @export L2Phi
-L2Phi <-function(L, t, metric) {
-    # reverse time scale
-    L[, 1] <- t - c(L[, 1])
-    notmin1 <- which(L[, 4] != -1)
-    L[notmin1, 4] <- t - c(L[notmin1, 4])
-    L[which(L[, 4] == t + 1), 4] <- -1
-
-    if(metric == "pd") {
-        return(sum(DDD::L2phylo(L, dropextinct = T)$edge.length))
-    } else if (metric == "mpd") {
-      
-    } else if (){
-
-    }
+L2Phi <- function(L, t, metric) {
+  # reverse time scale
+  L[, 1] <- t - c(L[, 1])
+  notmin1 <- which(L[, 4] != -1)
+  L[notmin1, 4] <- t - c(L[notmin1, 4])
+  L[which(L[, 4] == t + 1), 4] <- -1
+  
+  # metrics
+  if (metric == "pd") {
+    return(sum(DDD::L2phylo(L, dropextinct = T)$edge.length))
+  } else if (metric == "mpd") {
+    phy <- DDD::L2phylo(L, dropextinct = T)
+    n <- length(phy$tip.label)
+    dist <- dist.nodes(phy)[1:n, 1:n]
+    return(mean(dist[lower.tri(dist)]))
+  }
 }
+
+#' Function to convert a phylogenetic tree with extant species to mean pairwise 
+#' distance
+#' 
+#' Converting a phylogenetic tree of phylo object to mean pairwise distance 
+#' among all tips
+#' 
+#' 
+#' @param phy 
+#' @param a phylo object that only contains extant species
+#' extinct at the present
+#' @return a numeric value of mean pairwise distance
+#' @author Tianjian Qin
+#' @keywords phylogenetics
+#' @export phylo2mpd
+phylo2mpd <- function(phy) {
+  n <- length(phy$tip.label)
+  dist <- dist.nodes(phy)[1:n, 1:n]
+  return(mean(dist[lower.tri(dist)]))
+}
+
+#' Function to convert a phylogenetic tree with extant species to phylogenetic
+#' diversity
+#' 
+#' Converting a phylogenetic tree of phylo object to total lengths of all 
+#' branches in the tree
+#' 
+#' 
+#' @param phy 
+#' @param a phylo object that only contains extant species
+#' extinct at the present
+#' @return a numeric value of phylogenetic diversity
+#' @author Tianjian Qin
+#' @keywords phylogenetics
+#' @export phylo2pd
+phylo2pd <- function(phy) {
+  return(sum(phy$edge.length))
+}
+
