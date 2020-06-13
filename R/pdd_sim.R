@@ -1,20 +1,41 @@
 pdd_update_lamu <- function(lamu, Phi, pars, model) {
     if (model == "dsce1") {
         if (length(pars) != 1) {
-            stop("missing parameter(s)")
+            stop("incorrect parameter(s)")
         }
-        #linear PD dependence in speciation rate
-        newla <- max(0, lamu[1, 1] * (1 - Phi / pars))
+        #dependent speciation, constant extinction
+        K <- pars
+        newla <- max(0, lamu[1, 1] * (1 - Phi / K))
         newmu <- lamu[1, 2]
     } else if (model == "dsce2") {
         if (length(pars) != 3) {
-            stop("missing parameter(s)")
+            stop("incorrect parameter(s)")
         }
+        #dependent speciation, constant extinction
         N <- pars[1]
         beta_N <- pars[2]
         beta_phi <- pars[3]
         newla <- max(0, lamu[1, 1] + beta_N * N + beta_phi * Phi)
         newmu <- lamu[1, 2]
+    } else if (model == "dsde1") {
+        if (length(pars) != 2) {
+            stop("incorrect parameter(s)")
+        }
+        #dependent speciation, dependent extinction
+        mumax <- pars[1]
+        K <- pars[2]
+        newla <- max(0, lamu[1, 1] * (1 - Phi / K))
+        newmu <- min(mumax, mumax * (Phi / K))
+    } else if (model == "dsdeb") {
+        if (length(pars) != 2) {
+            stop("incorrect parameter(s)")
+        }
+        #dependent speciation, dependent extinction
+        mumax <- pars[1]
+        lamin <- mumax
+        K <- pars[2]
+        newla <- max(lamin, lamu[1, 1] * (1 - Phi / K))
+        newmu <- min(mumax, mumax * (Phi / K))
     }
     
     return(c(newla, newmu))
@@ -112,7 +133,7 @@ pdd_sim <- function (pars,
                         
                     } else {
                         Phi[i] <- L2Phi(L, t[i], metric)
-                        lamu[i, ] <-
+                        lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], K, model)
                     }
                 } else if (event == "fake_spec" |
@@ -156,8 +177,6 @@ pdd_sim <- function (pars,
                 lamuphis = lamuphis
             )
         return(out)
-    } else if (length(pars) == 3 && model != "dsce1") {
-        stop("this model requires 3 parameters")
     }
     
     if (length(pars) == 4 && model == "dsce2") {
@@ -208,7 +227,7 @@ pdd_sim <- function (pars,
                         
                     } else {
                         Phi[i] <- L2Phi(L, t[i], metric)
-                        lamu[i, ] <-
+                        lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], Nbetas, model)
                     }
                 } else if (event == "fake_spec" |
@@ -252,7 +271,193 @@ pdd_sim <- function (pars,
                 lamuphis = lamuphis
             )
         return(out)
-    } else if (length(pars) == 4 && model != "dsce2") {
-        stop("this model requires 4 parameters")
+    }
+    
+    if (length(pars) == 3 && model == "dsde1") {
+        done <- 0
+        while (done == 0) {
+            # initialization
+            t <- rep(0, 1)
+            L <- matrix(0, 2, 4)
+            i <- 1
+            t[1] <- 0
+            N <- 2
+            L[1, 1:4] <- c(0, 0, -1, -1)
+            L[2, 1:4] <- c(0, -1, 2, -1)
+            Phi <- rep(0, 1) # PD
+            mumaxK <- c(pars[2], pars[3])
+            linlist <- c(-1, 2)
+            newL <- 2
+            lamu <- matrix(c(pars[1], 0), ncol = 2)
+            Phi[i] <- 0
+            
+            t[i + 1] <-
+                t[i] + stats::rexp(1, pdd_sum_rates(lamu, N, i))
+            
+            # main simulation circle
+            while (t[i + 1] <= age) {
+                i <- i + 1
+                ranL <- sample2(linlist, 1)
+                Phi[i] <- L2Phi(L, t[i], metric)
+                lamu <-
+                    rbind(lamu,
+                          pdd_update_lamu(lamu, Phi[i], mumaxK, model))
+                event <- pdd_sample_event(lamu, N, i)
+                if (event == "spec") {
+                    N[i] <- N[i - 1] + 1
+                    newL <- newL + 1
+                    L <- rbind(L, c(t[i], ranL, sign(ranL) * newL,
+                                    -1))
+                    linlist <- c(linlist, sign(ranL) * newL)
+                } else if (event == "ext") {
+                    N[i] <- N[i - 1] - 1
+                    L[abs(ranL), 4] <- t[i]
+                    w <- which(linlist == ranL)
+                    linlist <- linlist[-w]
+                    linlist <- sort(linlist)
+                    
+                    if (sum(linlist < 0) == 0 |
+                        sum(linlist > 0) == 0) {
+                        
+                    } else {
+                        Phi[i] <- L2Phi(L, t[i], metric)
+                        lamu[i,] <-
+                            pdd_update_lamu(lamu, Phi[i], mumaxK, model)
+                    }
+                } else if (event == "fake_spec" |
+                           event == "fake_ext") {
+                    N[i] <- N[i - 1]
+                }
+                if (sum(linlist < 0) == 0 | sum(linlist > 0) == 0) {
+                    t[i + 1] <- Inf
+                } else {
+                    t[i + 1] <- t[i] + stats::rexp(1, pdd_sum_rates(lamu, N, i))
+                }
+            }
+            if (sum(linlist < 0) == 0 | sum(linlist > 0) == 0) {
+                done <- 0
+            } else {
+                done <- 1
+            }
+        }
+        
+        L[, 1] <- age - c(L[, 1])
+        notmin1 <- which(L[, 4] != -1)
+        L[notmin1, 4] <- age - c(L[notmin1, 4])
+        L[which(L[, 4] == age + 1), 4] <- -1
+        tes <- L2phylo(L, dropextinct = T)
+        tas <- L2phylo(L, dropextinct = F)
+        brts <- L2brts(L, dropextinct = T)
+        lamuphis <-
+            data.frame(
+                "time" = t[-i],
+                "lambda" = lamu[, 1],
+                "mu" = lamu[, 2],
+                "Phi" = Phi,
+                "N" = N
+            )
+        out <-
+            list(
+                tes = tes,
+                tas = tas,
+                L = L,
+                brts = brts,
+                lamuphis = lamuphis
+            )
+        return(out)
+    }
+    
+    if (length(pars) == 3 && model == "dsdeb") {
+        done <- 0
+        while (done == 0) {
+            # initialization
+            t <- rep(0, 1)
+            L <- matrix(0, 2, 4)
+            i <- 1
+            t[1] <- 0
+            N <- 2
+            L[1, 1:4] <- c(0, 0, -1, -1)
+            L[2, 1:4] <- c(0, -1, 2, -1)
+            Phi <- rep(0, 1) # PD
+            mumaxK <- c(pars[2], pars[3])
+            linlist <- c(-1, 2)
+            newL <- 2
+            lamu <- matrix(c(pars[1], 0), ncol = 2)
+            Phi[i] <- 0
+            
+            t[i + 1] <-
+                t[i] + stats::rexp(1, pdd_sum_rates(lamu, N, i))
+            
+            # main simulation circle
+            while (t[i + 1] <= age) {
+                i <- i + 1
+                ranL <- sample2(linlist, 1)
+                Phi[i] <- L2Phi(L, t[i], metric)
+                lamu <-
+                    rbind(lamu,
+                          pdd_update_lamu(lamu, Phi[i], mumaxK, model))
+                event <- pdd_sample_event(lamu, N, i)
+                if (event == "spec") {
+                    N[i] <- N[i - 1] + 1
+                    newL <- newL + 1
+                    L <- rbind(L, c(t[i], ranL, sign(ranL) * newL,
+                                    -1))
+                    linlist <- c(linlist, sign(ranL) * newL)
+                } else if (event == "ext") {
+                    N[i] <- N[i - 1] - 1
+                    L[abs(ranL), 4] <- t[i]
+                    w <- which(linlist == ranL)
+                    linlist <- linlist[-w]
+                    linlist <- sort(linlist)
+                    
+                    if (sum(linlist < 0) == 0 |
+                        sum(linlist > 0) == 0) {
+                        
+                    } else {
+                        Phi[i] <- L2Phi(L, t[i], metric)
+                        lamu[i,] <-
+                            pdd_update_lamu(lamu, Phi[i], mumaxK, model)
+                    }
+                } else if (event == "fake_spec" |
+                           event == "fake_ext") {
+                    N[i] <- N[i - 1]
+                }
+                if (sum(linlist < 0) == 0 | sum(linlist > 0) == 0) {
+                    t[i + 1] <- Inf
+                } else {
+                    t[i + 1] <- t[i] + stats::rexp(1, pdd_sum_rates(lamu, N, i))
+                }
+            }
+            if (sum(linlist < 0) == 0 | sum(linlist > 0) == 0) {
+                done <- 0
+            } else {
+                done <- 1
+            }
+        }
+        
+        L[, 1] <- age - c(L[, 1])
+        notmin1 <- which(L[, 4] != -1)
+        L[notmin1, 4] <- age - c(L[notmin1, 4])
+        L[which(L[, 4] == age + 1), 4] <- -1
+        tes <- L2phylo(L, dropextinct = T)
+        tas <- L2phylo(L, dropextinct = F)
+        brts <- L2brts(L, dropextinct = T)
+        lamuphis <-
+            data.frame(
+                "time" = t[-i],
+                "lambda" = lamu[, 1],
+                "mu" = lamu[, 2],
+                "Phi" = Phi,
+                "N" = N
+            )
+        out <-
+            list(
+                tes = tes,
+                tas = tas,
+                L = L,
+                brts = brts,
+                lamuphis = lamuphis
+            )
+        return(out)
     }
 } 

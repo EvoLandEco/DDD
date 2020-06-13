@@ -948,3 +948,32 @@ phylo2pd <- function(phy) {
   return(sum(phy$edge.length))
 }
 
+extract_pdd_result <- function(result, nrep, which, nlist = 5) {
+  out<-
+    return(result[seq(which, nlist * nrep, by = nlist)])
+}
+
+bind_result <- function(result) {
+  out <- lapply(result, as.data.frame)
+  n <- length(out)
+  
+  for (i in 1:n) {
+    out[[i]]["rep"] <- rep(i, times = nrow(out[[i]]))
+  }
+  
+  return(dplyr::bind_rows(out))
+}
+
+pdd_simulation_replicated <- function(rep, pars, age, model, metric) {
+  require(tidyverse)
+  results <- replicate(rep, {
+    pdd_sim(pars,
+            age,
+            model,
+            metric)
+  })
+  result_pars <- extract_pdd_result(results, 10, 5)
+  result_pars_binded <- bind_result(result_pars)
+  
+  return(list(result_pars = result_pars, result_pars_binded = result_pars_binded))
+}
