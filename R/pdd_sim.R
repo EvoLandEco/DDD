@@ -122,7 +122,12 @@ pdd_sim <- function (pars,
             while (t[i + 1] <= age) {
                 i <- i + 1
                 ranL <- sample2(linlist, 1)
-                Phi[i] <- L2Phi(L, t[i], metric)
+                
+                Phi[i] <- L2Phi(L,t[i],metric)
+                #test different Phi metrics
+                #temp<-L2Phi(L,t[i],metric)
+                #Phi[i] <- temp / N[i-1]
+                
                 lamu <-
                     rbind(lamu, pdd_update_lamu(lamu, Phi[i], K, model))
                 event <- pdd_sample_event(lamu, N, i)
@@ -143,7 +148,8 @@ pdd_sim <- function (pars,
                         sum(linlist > 0) == 0) {
                         
                     } else {
-                        Phi[i] <- L2Phi(L, t[i], metric)
+                        temp <- L2Phi(L, t[i], metric)
+                        Phi[i] <- temp / t[i]
                         lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], K, model)
                     }
@@ -201,7 +207,7 @@ pdd_sim <- function (pars,
             N <- 2
             L[1, 1:4] <- c(0, 0, -1, -1)
             L[2, 1:4] <- c(0, -1, 2, -1)
-            Phi <- rep(0, 1) # Phylogenetci metrices
+            Phi <- rep(0, 1) # Phylogenetic metrices
             Nbetas <- c(N, pars[3], pars[4])
             linlist <- c(-1, 2)
             newL <- 2
