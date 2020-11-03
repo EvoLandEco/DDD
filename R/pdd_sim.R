@@ -22,10 +22,18 @@ pdd_update_lamu <- function(lamu, Phi, pars, model) {
             stop("incorrect parameter(s)")
         }
         #dependent speciation, dependent extinction
-        mumax <- pars[1]
+        
+        #mu is mumax
+        #mumax <- pars[1]
+        #K <- pars[2]
+        #newla <- max(0, lamu[1, 1] * (1 - Phi / K))
+        #newmu <- min(mumax, mumax * (Phi / K))
+        
+        #mu is mu0
+        mu0 <- pars[1]
         K <- pars[2]
         newla <- max(0, lamu[1, 1] * (1 - Phi / K))
-        newmu <- min(mumax, mumax * (Phi / K))
+        newmu <- max(0, mu0 * (Phi / K))
     } else if (model == "dsde2") {
         if (length(pars) != 4) {
             stop("incorrect parameter(s)")
@@ -124,7 +132,7 @@ pdd_sim <- function (pars,
                 ranL <- sample2(linlist, 1)
                 
                 Phi[i] <- L2Phi(L,t[i],metric)
-                #test different Phi metrics
+                ## test different Phi metrics ##
                 #temp<-L2Phi(L,t[i],metric)
                 #Phi[i] <- temp / N[i-1]
                 
@@ -146,10 +154,11 @@ pdd_sim <- function (pars,
                     
                     if (sum(linlist < 0) == 0 |
                         sum(linlist > 0) == 0) {
-                        
+                        # when one whole crown branch is extinct, do nothing
                     } else {
-                        temp <- L2Phi(L, t[i], metric)
-                        Phi[i] <- temp / t[i]
+                        Phi[i] <- L2Phi(L,t[i],metric)
+                        #temp <- L2Phi(L, t[i], metric)
+                        #Phi[i] <- temp / t[i]
                         lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], K, model)
                     }
@@ -302,7 +311,8 @@ pdd_sim <- function (pars,
             L[1, 1:4] <- c(0, 0, -1, -1)
             L[2, 1:4] <- c(0, -1, 2, -1)
             Phi <- rep(0, 1) # PD
-            mumaxK <- c(pars[2], pars[3])
+            K <- pars[3]
+            mu0 <- pars[2]
             linlist <- c(-1, 2)
             newL <- 2
             lamu <- matrix(c(pars[1], 0), ncol = 2)
@@ -318,7 +328,7 @@ pdd_sim <- function (pars,
                 Phi[i] <- L2Phi(L, t[i], metric)
                 lamu <-
                     rbind(lamu,
-                          pdd_update_lamu(lamu, Phi[i], mumaxK, model))
+                          pdd_update_lamu(lamu, Phi[i], c(mu0, K), model))
                 event <- pdd_sample_event(lamu, N, i)
                 if (event == "spec") {
                     N[i] <- N[i - 1] + 1
@@ -339,7 +349,7 @@ pdd_sim <- function (pars,
                     } else {
                         Phi[i] <- L2Phi(L, t[i], metric)
                         lamu[i,] <-
-                            pdd_update_lamu(lamu, Phi[i], mumaxK, model)
+                            pdd_update_lamu(lamu, Phi[i], c(mu0, K), model)
                     }
                 } else if (event == "fake_spec" |
                            event == "fake_ext") {
