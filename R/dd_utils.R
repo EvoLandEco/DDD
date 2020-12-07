@@ -998,6 +998,7 @@ L2Phi <- function(L, t, metric) {
 L2ED <- function(L, t) {
   require(gtools)
   require(ape)
+
   # reverse time scale
   L[, 1] <- t - c(L[, 1])
   notmin1 <- which(L[, 4] != -1)
