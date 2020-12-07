@@ -26,16 +26,17 @@ pdd_update_lamu <- function(lamu, Phi, pars, model) {
         newla <- max(0, lamu[1, 1] * (1 - Phi / K))
         newmu <- max(0, mu0 * (Phi / K))
     } else if (model == "dsde2") {
-        if (length(pars) != 4) {
+        if (length(pars) != 5) {
             stop("incorrect parameter(s)")
         }
         #dependent speciation, constant extinction
         N <- pars[1]
-        R <- pars[2]
-        beta_N <- pars[3]
-        beta_phi <- pars[4]
+        beta_N <- pars[2]
+        beta_phi <- pars[3]
+        gamma_N <- pars[4]
+        gamma_phi <- pars[5]
         newla <- max(0, lamu[1, 1] + beta_N * N + beta_phi * Phi)
-        newmu <- max(-R * (beta_N * N + beta_phi * Phi), 0)
+        newmu <- max(0, lamu[1, 2] + gamma_N * N + gamma_phi * Phi)
     }
     
     return(c(newla, newmu))
@@ -71,7 +72,8 @@ pdd_sample_event <- function(lamu, N, i) {
 pdd_sim <- function (pars,
                      age,
                      model = "dsce1",
-                     metric = "pd") {
+                     metric = "pd",
+                     offset = "none") {
     if (pars[1] < 0 | pars[2] < 0) {
         stop('per species rates should be positive')
     }
@@ -114,14 +116,20 @@ pdd_sim <- function (pars,
                 i <- i + 1
                 ranL <- sample2(linlist, 1)
                 
-                Phi[i] <- L2Phi(L, t[i], metric)
-                ## test different Phi metrics ##
-                #temp<-L2Phi(L,t[i],metric)
-                #Phi[i] <- temp / N[i-1]
+                if (offset == "none") {
+                    Phi[i] <- L2Phi(L, t[i], metric)
+                } else if (offset == "simtime") {
+                    Phi[i] <- L2Phi(L, t[i], metric) - t[i]
+                } else if (offset == "nspecies") {
+                    Phi[i] <- L2Phi(L, t[i], metric) / N[i - 1]
+                } else{
+                    stop("no such offset method")
+                }
                 
                 lamu <-
                     rbind(lamu, pdd_update_lamu(lamu, Phi[i], K, model))
                 event <- pdd_sample_event(lamu, N, i)
+                
                 if (event == "spec") {
                     N[i] <- N[i - 1] + 1
                     newL <- newL + 1
@@ -140,10 +148,7 @@ pdd_sim <- function (pars,
                         # when one whole crown branch is extinct, do nothing
                     } else {
                         Phi[i] <- L2Phi(L, t[i], metric)
-                        ## test different Phi metrics
-                        #temp <- L2Phi(L, t[i], metric)
-                        #Phi[i] <- temp / N[i-1]
-                        lamu[i, ] <-
+                        lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], K, model)
                     }
                 } else if (event == "fake_spec" |
@@ -214,10 +219,16 @@ pdd_sim <- function (pars,
             while (t[i + 1] <= age) {
                 i <- i + 1
                 ranL <- sample2(linlist, 1)
-                Phi[i] <- L2Phi(L, t[i], metric)
-                ## test different Phi metrics ##
-                #temp<-L2Phi(L,t[i],metric)
-                #Phi[i] <- temp / N[i-1]
+                
+                if (offset == "none") {
+                    Phi[i] <- L2Phi(L, t[i], metric)
+                } else if (offset == "simtime") {
+                    Phi[i] <- L2Phi(L, t[i], metric) - t[i]
+                } else if (offset == "nspecies") {
+                    Phi[i] <- L2Phi(L, t[i], metric) / N[i - 1]
+                } else{
+                    stop("no such offset method")
+                }
                 
                 lamu <-
                     rbind(lamu,
@@ -241,11 +252,7 @@ pdd_sim <- function (pars,
                         
                     } else {
                         Phi[i] <- L2Phi(L, t[i], metric)
-                        ## test different Phi metrics ##
-                        #temp<-L2Phi(L,t[i],metric)
-                        #Phi[i] <- temp / N[i-1]
-                        
-                        lamu[i, ] <-
+                        lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], Nbetas, model)
                     }
                 } else if (event == "fake_spec" |
@@ -317,10 +324,16 @@ pdd_sim <- function (pars,
             while (t[i + 1] <= age) {
                 i <- i + 1
                 ranL <- sample2(linlist, 1)
-                Phi[i] <- L2Phi(L, t[i], metric)
-                ## test different Phi metrics ##
-                #temp<-L2Phi(L,t[i],metric)
-                #Phi[i] <- temp / N[i-1]
+
+                if (offset == "none") {
+                    Phi[i] <- L2Phi(L, t[i], metric)
+                } else if (offset == "simtime") {
+                    Phi[i] <- L2Phi(L, t[i], metric) - t[i]
+                } else if (offset == "nspecies") {
+                    Phi[i] <- L2Phi(L, t[i], metric) / N[i - 1]
+                } else{
+                    stop("no such offset method")
+                }
                 
                 lamu <-
                     rbind(lamu,
@@ -348,7 +361,7 @@ pdd_sim <- function (pars,
                         #temp<-L2Phi(L,t[i],metric)
                         #Phi[i] <- temp / N[i-1]
                         
-                        lamu[i, ] <-
+                        lamu[i,] <-
                             pdd_update_lamu(lamu, Phi[i], c(mu0, K), model)
                     }
                 } else if (event == "fake_spec" |
@@ -394,7 +407,7 @@ pdd_sim <- function (pars,
         return(out)
     }
     
-    if (length(pars) == 4 && model == "dsde2") {
+    if (length(pars) == 6 && model == "dsde2") {
         done <- 0
         while (done == 0) {
             # initialization
@@ -405,11 +418,11 @@ pdd_sim <- function (pars,
             N <- 2
             L[1, 1:4] <- c(0, 0, -1, -1)
             L[2, 1:4] <- c(0, -1, 2, -1)
-            Phi <- rep(0, 1) # Phylogenetci metrices
-            NRbetas <- c(N, pars[2], pars[3], pars[4])
+            Phi <- rep(0, 1) # Phylogenetic metrices
+            Nbg <- c(N, pars[3], pars[4], pars[5], pars[6])
             linlist <- c(-1, 2)
             newL <- 2
-            lamu <- matrix(c(pars[1], 0), ncol = 2)
+            lamu <- matrix(c(pars[1], pars[2]), ncol = 2)
             Phi[i] <- 0
             
             t[i + 1] <-
@@ -419,14 +432,20 @@ pdd_sim <- function (pars,
             while (t[i + 1] <= age) {
                 i <- i + 1
                 ranL <- sample2(linlist, 1)
-                Phi[i] <- L2Phi(L, t[i], metric)
-                ## test different Phi metrics ##
-                #temp<-L2Phi(L,t[i],metric)
-                #Phi[i] <- temp / N[i-1]
+                
+                if (offset == "none") {
+                    Phi[i] <- L2Phi(L, t[i], metric)
+                } else if (offset == "simtime") {
+                    Phi[i] <- L2Phi(L, t[i], metric) - t[i]
+                } else if (offset == "nspecies") {
+                    Phi[i] <- L2Phi(L, t[i], metric) / N[i - 1]
+                } else{
+                    stop("no such offset method")
+                }
                 
                 lamu <-
                     rbind(lamu,
-                          pdd_update_lamu(lamu, Phi[i], NRbetas, model))
+                          pdd_update_lamu(lamu, Phi[i], Nbg, model))
                 event <- pdd_sample_event(lamu, N, i)
                 if (event == "spec") {
                     N[i] <- N[i - 1] + 1
@@ -450,8 +469,8 @@ pdd_sim <- function (pars,
                         #temp<-L2Phi(L,t[i],metric)
                         #Phi[i] <- temp / N[i-1]
                         
-                        lamu[i, ] <-
-                            pdd_update_lamu(lamu, Phi[i], NRbetas, model)
+                        lamu[i,] <-
+                            pdd_update_lamu(lamu, Phi[i], Nbg, model)
                     }
                 } else if (event == "fake_spec" |
                            event == "fake_ext") {
